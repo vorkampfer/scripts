@@ -1,3 +1,6 @@
+# Warning there is a flaw in this script. You need to run it twice to get the os-version you are looking for.
+# I can not seem to unset the variables. So the old variable lingers and that is what is looked up. I have tried
+# deleting the temp file it is being sent to and I have also tried the unset command. Let me know if you can help. Thanks.
 # If there are obvious mistakes I apologize. I am learning Bash and Python as I go along.
 # simple bash script to automate finding the launchpad OS version. For example Focal, jammy, Xenial, Buster, Bionic etc...
 # Keep in mind even looking this up manually we can get the wrong OS version information because
