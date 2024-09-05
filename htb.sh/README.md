@@ -1,1 +1,3 @@
-
+# htb.sh
+This is a cool little script to automate some things when using Hack The Box.
+This script is made for the BlackArch OS on HTB. You will need to edit it for use on Debian etc...
