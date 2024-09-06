@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # USAGE: see below
 # Encoding the script is recommended depending on the situation. Below are two different examples on how to encode the payload.
@@ -17,8 +17,13 @@ function ctrl_c(){
 trap ctrl_c SIGINT
 
 # Global Variables
+GIT=$(find / \-name \*.git 2>/dev/null | grep "git$" | tail -n 1)
+WORDS=$(mount | grep ^proc)
 USER1=$(whoami)
-ESCAPE1=$(hostname -I | awk '{print $1}' | cut -d'.' -f1)
+ESCAPE1=$(hostname -I 2>/dev/null | awk '{print $1}' | cut -d'.' -f1)
+HIDEPID_STATUS=$(mount | grep ^proc | awk '{print $3}' FS="," | tr -d ')')
+HIDEPIDSHOW=$(mount | grep ^proc | awk '{print $3}' FS="," | tr -d ')' | cut -d'=' -f1)
+HOSTIP=$(ip a | grep 'inet 10' | awk '{print $2}')
 
 # Colors
 GREEN="\e[0;32m\033[1m"
@@ -35,14 +40,30 @@ echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Checking to see if you are in a container or the actual server.${NOCOLOR}"
 echo
 if [[ "${ESCAPE1}" == 10 ]]; then
-        echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}You are most likely NOT in a container.${NOCOLOR}"
+        echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW} $USER1 is most likely NOT in a container.${NOCOLOR}"
 else
-        echo -e "${RED}==>[!]${NOCOLOR} ${YELLOW}You are most likely in a container and will need to escape.${NOCOLOR}"
+        echo -e "${RED}==>[!]${NOCOLOR} ${YELLOW} $USER1 is likely in a container and will need to escape.${NOCOLOR}"
 fi
 wait
-echo
 echo -e "${YELLOW}ᐅ${NOCOLOR} hostname -I"
-hostname -I
+if [[ -f "/usr/bin/hostname" ]] || [[ -f "/bin/hostname" ]]; then
+        hostname -I | awk '{print $1}' 2>/dev/null || ifconfig | grep "inet 10" | awk '{print $2}' FS=" " 2>/dev/null || ip a | grep 'inet 10' | awk '{print $2}'
+        echo 
+else 
+        echo 
+        echo -e "${RED}==>[!]${NOCOLOR} ${YELLOW}Sorry, /usr/bin/hostname is not installed on this machine.${NOCOLOR}"
+        echo -e "${YELLOW}ᐅ${NOCOLOR} ip a | grep 'inet 10'"
+        ip a | grep 'inet 10' | awk '{print $2}' 2>/dev/null
+        echo 
+        case "$HOSTIP" in 
+                *10*)
+                echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE} $USER1 is most likely not in a container ${NOCOLOR}"
+                ;;
+                *)
+                echo -e "${RED}==>[-]${NOCOLOR} ${YELLOW} $USER1 is most likely in a container  and will need to escape.${NOCOLOR}"
+                ;;
+        esac
+fi 
 wait
 echo
 echo -e "${YELLOW}ᐅ${NOCOLOR} cat /proc/net/fib_trie"
@@ -54,7 +75,8 @@ echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Getting info about host machine:${NOCOLOR}"
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE}hostname information${NOCOLOR}"
-/usr/bin/hostnamectl
+hostnamectl 2>/dev/null || lscpu 2>/dev/null | grep -v "Flags"
+wait 
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE} Current user:${NOCOLOR} $(id)" | fold
 echo
@@ -73,16 +95,17 @@ echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
 echo -e "${YELLOW}Running mount to see if $USER1 is allowed to see root processes:${NOCOLOR}"
-echo -e "${YELLOW}If you see hidePID=1 or 2 then the user is not allowed to see root processes:${NOCOLOR}"
 echo -e "${YELLOW}ᐅ${NOCOLOR} mount | grep ^proc"
-mount | grep ^proc
-# if [[ $? -eq 0 ]]; then
-#       echo -e "${GREEN}==>[+]${NOCOLOR} $USER1 can view root processes"
-# else
-#       echo -e "${RED}[-]${NOCOLOR} $USER1 can NOT view root processes"
-# fi
-# wait
-echo
+#mount | grep ^proc
+case "$WORDS" in 
+  *hidepid*)
+    echo -e "${RED}==>[-]${NOCOLOR} ${YELLOW} $USER1 can NOT view root processes ${NOCOLOR}"
+    ;;
+    *)
+    echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE} $USER1 can view root processes ${NOCOLOR}"
+    ;;
+esac
+echo 
 echo -e "${PURPLE}=========================================================================================${NOCOLOR}"
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Getting info about the running processes for${NOCOLOR} ${RED}root${NOCOLOR} ${YELLOW}only:${NOCOLOR}"
@@ -103,7 +126,7 @@ ps aux --sort user | awk '{print $1,$2,$11}' FS=" " | grep -vE "command|procmon|
 wait
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Runnig ps -ef --forest command on one line grepping for anything larger than 80 characters${NOCOLOR}"
-echo -e "${YELLOW}ᐅ${NOCOLOR} ps -ef --forext | less -S"
+echo -e "${YELLOW}ᐅ${NOCOLOR} ps -ef --forest | less -S"
 ps -ef --forest | less -S | awk 'length>80'
 wait
 echo
@@ -129,17 +152,18 @@ echo -e "${YELLOW}ᐅ${NOCOLOR} netstat -nat"
 netstat -nat
 wait
 echo
+echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Getting info about any open ports from${NOCOLOR} ${RED}/proc/net/tcp${NOCOLOR}"
-echo
-echo -e "${YELLOW}ᐅ${NOCOLOR} ./netPortsniff.sh"
+echo -e "${YELLOW}ᐅ${NOCOLOR} cat /proc/net/tcp"
 if [ -f "/proc/net/tcp" ]; then
         echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW} Here are the hex encoded ports from the file${NOCOLOR} '/proc/net/tcp' "
         cat /proc/net/tcp | awk -F":" '{print $3}' | cut -d' ' -f1 | awk '!($3="")' | sed '/^[[:space:]]*$/d' | sort -u
         wait
         echo
         echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Decoding the HEX ports: ${NOCOLOR}"
-        for port in $(cat /proc/net/tcp | awk '{print $2}' | grep -v local | awk '{print $2}' FS=":" | sort -u); do echo "[+] Port $port ==> $(echo "obase=10; ibase=16; $port" | bc)"; done
+        #for port in $(cat /proc/net/tcp | awk '{print $2}' | grep -v local | awk '{print $2}' FS=":" | sort -u); do echo "[+] Port $port ==> $(echo "obase=10; ibase=16; $port" | bc)"; done
+        for port in $(cat /proc/net/tcp | awk '{print $2}' | grep -v address | awk '{print $2}' FS=":" | sort -u); do echo "[+] Port $port ==> $((16#$port))"; done
 else
         echo -e "${RED}==>[*] ERROR:${NOCOLOR} ${YELLOW} File not found:${NOCOLOR} '/proc/net/tcp' "
 fi
@@ -148,12 +172,14 @@ echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Checking who has bash access.${NOCOLOR}"
+echo -e "${YELLOW}ᐅ${NOCOLOR} cat /etc/passwd | grep 'sh$'"
 cat /etc/passwd | grep -i --color=never "sh$"
 wait
 echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Getting info about the files owned by root with SUID permission enabled:${NOCOLOR}"
+echo -e "${YELLOW}ᐅ${NOCOLOR} find / -perm -4000 -user root -ls 2>/dev/null"
 /usr/bin/find / -perm -4000 -user root -ls 2>/dev/null
 wait
 echo
@@ -171,14 +197,15 @@ wait
 find /var/www/html -user $USER1 -executable -ls 2>/dev/null | awk '{print $5,$6,$11}' FS=" " | grep "^root"
 wait
 find /home -executable -user $USER1 -ls 2>/dev/null | awk '{print $5,$6,$11}' FS=" " | grep "^root"
-#find / -user $USER1 2>/dev/null | awk 'length>20' | grep -v '^/var\|^/proc\|^/run\|^/sys\|\.pyenv|' | grep -iE "\.sh|\.php|\.config|bash|apache|nginx|\.txt|\.yml|\.py"
-#find / -executable -writable -user $USER1 2>/dev/null | grep -v '^/proc\|^/run\|^/sys\|^\.pyenv\|^/home' | awk '{print $5,$6,$11}' FS=" " | grep "^root"
 wait
 echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
+echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Checking what files are writable by $USER1 ${NOCOLOR}"
+echo -e "${YELLOW}ᐅ${NOCOLOR} find / -group $USER1 -writable -ls 2>/dev/null"
+find / -group $USER1 -writable -ls 2>/dev/null | awk 'length>20' | grep -vE "var|sys|proc|home|run"
+echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Checking what groups $USER1 belongs to ${NOCOLOR}"
-#find / -group $USER1 -writable -ls 2>/dev/null | awk 'length>20' | grep -v '^/var\|^/proc\|^/run\|^/sys'
 echo -e "${YELLOW}ᐅ${NOCOLOR} cat /etc/group | grep $USER1"
 cat /etc/group | grep $USER1
 wait
@@ -188,10 +215,10 @@ wait
 echo
 echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Checking what files and directories $USER1 group/user can write to ${NOCOLOR}"
 echo -e "${YELLOW}ᐅ${NOCOLOR} find / -group $USER1 -writable -ls 2>/dev/null | grep -v '/proc\|/run\|/sys\|/home'"
-find / -group $USER1 -writable -ls 2>/dev/null | grep -v '/proc\|/run\|/sys\|/home' | awk '{print $5,$6,$11}' FS=" " | grep "^root"
+find / -group $USER1 -writable -ls 2>/dev/null | awk '{print $5,$6,$11}' FS=" " | grep "^root"
 wait
 echo
-find / -user $USER1 -writable -ls 2>/dev/null | grep -v '/proc\|/run\|/sys\|/home\|/var\|/dev' | awk '{print $5,$6,$11}' FS=" " | grep "^root"
+find / -user $USER1 -writable -ls 2>/dev/null | awk '{print $5,$6,$11}' FS=" " | grep "^root"
 wait
 echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
@@ -207,26 +234,33 @@ echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Looking for writable files or directo
 echo -e "${YELLOW}ᐅ${NOCOLOR} find /opt -writable"
 find /opt -writable
 wait
-find /opt -type f -user root -perm -002 2>/dev/null
+#find /opt -type f -user root -perm -002 2>/dev/null
 wait
-find /opt -type f -user $USER1 -perm -002 2>/dev/null
+#find /opt -type f -user $USER1 -perm -002 2>/dev/null
 wait
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
-echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Password Hunting for configs, databases, passwords in memory, grepping .php files etc....${NOCOLOR}"
-echo
-cat /home/$USER1/.bash_history | grep -iE --color "passwd|admin|token|secret|auth"
+echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW}Password Hunting for configs, databases, passwords in memory, .php, .git files etc....${NOCOLOR}"
+echo 
+find / \-name \*.git 2>/dev/null | grep --color=always "git$"
 wait
+echo 
+case "$GIT" in 
+  *.git*)
+    echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE} A .git directory was found. Sometimes the .config file in the .git directory will contain a password.${NOCOLOR}"
+    ;;
+    *)
+    echo ""
+    ;;
+esac
+wait 
 echo
-find /var/www \-name \*.php\* 2>/dev/null
+cat /home/$USER1/.bash_history | grep -iE --color "passwd|admin|token|secret|auth|sshpass"
 wait
-echo
-find /var/www/html \-name \*.php\* 2>/dev/null
-wait
-echo
-find /var/www \-name \*.config\* 2>/dev/null
-wait
-find /var/www/html \-name \*.config\* 2>/dev/null
+#find /var/www \-name \*.php\* 2>/dev/null
+#find /var/www/html \-name \*.php\* 2>/dev/null
+#find /var/www \-name \*.config\* 2>/dev/null
+#find /var/www/html \-name \*.config\* 2>/dev/null
 echo
 cat /var/www/config.php 2>/dev/null | grep -iE "passw|user" -C2
 wait
@@ -280,17 +314,37 @@ find /home -type f -perm u=rw,g=,o= 2>/dev/null
 wait
 echo
 echo
-find /root/.ssh -type f -perm u=rw,g=,o= 2>/dev/null
+#find /root/.ssh -type f -perm u=rw,g=,o= 2>/dev/null
 wait
 echo
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
-echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW} Listing all the files of interest in '/opt' for $USER1. Some files/directories make no be viewable by $USER1. ${NOCOLOR}"
+echo -e "${GREEN}==>[+]${NOCOLOR} ${YELLOW} Listing all the files of interest in '/opt' for $USER1. Some files/directories may no be viewable by $USER1. ${NOCOLOR}"
 echo -e "${YELLOW}ᐅ${NOCOLOR} tree -fas /opt"
-tree -fas /opt | grep -iE "\.sh|\.py|\.js|\.yml"
+if [[ -f "/usr/bin/tree" ]]; then
+        tree -fas /opt | grep -iE "\.sh|\.py|\.js|\.yml"
+else
+        echo -e "${RED}==>[!]ERROR:${NOCOLOR} ${YELLOW}The 'tree' command is not installed on this machine.${NOCOLOR}"
+fi 
 wait
 #tree -fas -L 3 /opt
 echo
+echo -e "${YELLOW}ᐅ${NOCOLOR} ls -la /opt/scripts"
+ls -lahr /opt/scripts 2>/dev/null
+wait
 echo -e "${PURPLE}==========================================================================================${NOCOLOR}"
 echo
+echo -e "${YELLOW}ᐅ${NOCOLOR} cat /etc/apache2/sites-enabled/*.conf"
+ls /etc/apache2/sites-enabled/*.conf
+if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}==>[+]${NOCOLOR} ${BLUE}The 'sites-enable' config file was detected. It is a good idea to give this file a glance.${NOCOLOR}"
+        cat /etc/apache2/sites-enabled/*.conf | grep -iE --color=always "auth|token|admin|passw|\.htb|\.local|\.com"
+else
+        echo -e ""
+fi
+wait
+echo
+find / \-name \*apache2.conf\* 2>/dev/null
+wait 
+echo 
 echo -e "${WHITE}Goodbye!${NOCOLOR}"
